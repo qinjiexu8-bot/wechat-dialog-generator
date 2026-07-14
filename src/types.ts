@@ -4,6 +4,8 @@ export interface ChatUser {
   avatar: string | null;
 }
 
+export type ChatMode = 'private' | 'group';
+
 export type MessageType = 'text' | 'time' | 'image' | 'voice' | 'redpacket' | 'transfer';
 
 export interface ChatMessage {
@@ -26,4 +28,17 @@ export interface PhoneSettings {
   unreadCount: number;
   selfBubbleColor: string;
   otherBubbleColor: string;
+  isMuted: boolean;
+  isWifiEnabled: boolean;
+  isDualSim: boolean;
+  backgroundColor: string;
+  backgroundImage: string | null;
+}
+
+export interface ChatWorkspace {
+  users: ChatUser[];
+  messages: ChatMessage[];
+  settings: PhoneSettings;
+  selfId: number | null;
+  importText: string;
 }

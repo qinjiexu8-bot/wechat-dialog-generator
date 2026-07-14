@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
 import { FileUp, FileText, Trash2, Copy, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { EXAMPLE_TEXT } from '@/lib/parser';
+import type { ChatMode } from '@/types';
 
-const DOUBAO_PROMPT = `请帮我生成一段微信群聊天记录，要求如下：
+const GROUP_PROMPT = `请帮我生成一段微信群聊天记录，要求如下：
 【参与人物】张伟、李娜、王芳（张伟是群主）
 【聊天主题】讨论周末团建活动安排
 【消息条数】15条左右
@@ -28,19 +29,42 @@ const DOUBAO_PROMPT = `请帮我生成一段微信群聊天记录，要求如下
 **王芳**：[红包]团建基金
 **张伟**：谢谢王姐！`;
 
+const PRIVATE_PROMPT = `请帮我生成一段两人微信私聊记录，要求如下：
+【参与人物】张伟、李娜（张伟是自己）
+【聊天主题】讨论周末安排
+【消息条数】12条左右
+
+输出格式严格按照以下规则，不要输出任何其他内容：
+1. 时间节点：**【X月X日 下午HH:MM】**
+2. 文字消息：**姓名**：消息内容
+3. 图片消息：**姓名**：[图片]
+4. 红包消息：**姓名**：[红包]备注内容
+5. 转账消息：**姓名**：[转账]金额:备注
+6. 语音消息：**姓名**：[语音]秒数
+7. 只能出现两位人物，消息之间直接换行。`;
+
+const PRIVATE_EXAMPLE = `**【7月14日 10:06】**
+
+**张伟**：下午有空吗？
+**李娜**：有空，怎么了？
+**张伟**：一起吃饭吧
+**李娜**：好呀，晚点见`;
+
 interface ImportPanelProps {
+  mode: ChatMode;
   text: string;
   onTextChange: (text: string) => void;
   onImport: () => void;
 }
 
-export function ImportPanel({ text, onTextChange, onImport }: ImportPanelProps) {
+export function ImportPanel({ mode, text, onTextChange, onImport }: ImportPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [promptOpen, setPromptOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const prompt = mode === 'group' ? GROUP_PROMPT : PRIVATE_PROMPT;
 
   const handleCopyPrompt = async () => {
-    await navigator.clipboard.writeText(DOUBAO_PROMPT);
+    await navigator.clipboard.writeText(prompt);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -82,7 +106,7 @@ export function ImportPanel({ text, onTextChange, onImport }: ImportPanelProps) 
           {promptOpen && (
             <div className="prompt-body">
               <div className="prompt-desc">复制以下 Prompt 发给豆包，将返回内容粘贴到下方文本框即可：</div>
-              <pre className="prompt-pre">{DOUBAO_PROMPT}</pre>
+              <pre className="prompt-pre">{prompt}</pre>
               <button className="btn btn-outline btn-sm" onClick={handleCopyPrompt}>
                 {copied ? <><Check size={14} /> 已复制</> : <><Copy size={14} /> 复制 Prompt</>}
               </button>
@@ -95,7 +119,7 @@ export function ImportPanel({ text, onTextChange, onImport }: ImportPanelProps) 
           <button className="btn btn-outline btn-sm" onClick={() => fileInputRef.current?.click()}>
             <FileUp size={15} /> 导入文件
           </button>
-          <button className="btn btn-outline btn-sm" onClick={() => onTextChange(EXAMPLE_TEXT)}>
+          <button className="btn btn-outline btn-sm" onClick={() => onTextChange(mode === 'group' ? EXAMPLE_TEXT : PRIVATE_EXAMPLE)}>
             <FileText size={15} /> 加载示例
           </button>
         </div>

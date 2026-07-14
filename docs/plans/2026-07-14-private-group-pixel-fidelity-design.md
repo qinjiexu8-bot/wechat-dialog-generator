@@ -44,3 +44,10 @@ Match the supplied 1179×2556 iPhone WeChat screenshot as closely as browser ren
 - Build the muted bell with a transparent diagonal channel plus a separate slash, and construct Wi-Fi from two clipped arc bands and a teardrop node so the exported silhouettes match the reference screenshot.
 - Provide independent Wi-Fi visibility and single/dual-SIM mode controls. Both modes retain the existing editable signal-strength value.
 - For the final PNG, replace the approximate Wi-Fi vector with the exact 49×37 RGB reference patch sampled from the user-supplied screenshot; the DOM preview keeps a lightweight matching SVG.
+
+## Client persistence
+
+- Save the active private/group tab and both complete workspaces to a versioned IndexedDB record.
+- Persist member names, avatars, messages, imported text, phone settings, and uploaded background/image data URLs.
+- Restore cached data before enabling writes, merge saved settings over current defaults for forward compatibility, and debounce edits before saving.
+- Flush the latest snapshot when the page becomes hidden or is unloaded; storage failures are non-blocking and reported once.

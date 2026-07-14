@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { toCanvas } from 'html-to-image';
 import { Copy, Download, Image as ImageIcon, MessageSquare, RotateCcw, UserRound, UsersRound } from 'lucide-react';
 import { ImportPanel } from '@/components/ImportPanel';
@@ -8,6 +8,7 @@ import { SettingsPanel } from '@/components/SettingsPanel';
 import { UserAvatarManager } from '@/components/UserAvatarManager';
 import { renderReferenceChrome } from '@/lib/exportRenderer';
 import { parseChatRecord } from '@/lib/parser';
+import { loadPersistedState, savePersistedState } from '@/lib/persistence';
 import type { ChatMessage, ChatMode, ChatWorkspace, PhoneSettings } from '@/types';
 
 const PRIVATE_WORKSPACE: ChatWorkspace = {
@@ -82,6 +83,22 @@ function cloneWorkspace(workspace: ChatWorkspace): ChatWorkspace {
   };
 }
 
+function restoreWorkspace(value: ChatWorkspace | undefined, fallback: ChatWorkspace): ChatWorkspace {
+  if (!value || typeof value !== 'object') return cloneWorkspace(fallback);
+  const storedSettings = value.settings && typeof value.settings === 'object' ? value.settings : {};
+  return {
+    users: Array.isArray(value.users)
+      ? value.users.map(user => ({ ...user }))
+      : fallback.users.map(user => ({ ...user })),
+    messages: Array.isArray(value.messages)
+      ? value.messages.map(message => ({ ...message, params: { ...message.params } }))
+      : fallback.messages.map(message => ({ ...message, params: { ...message.params } })),
+    settings: { ...fallback.settings, ...storedSettings },
+    selfId: typeof value.selfId === 'number' || value.selfId === null ? value.selfId : fallback.selfId,
+    importText: typeof value.importText === 'string' ? value.importText : fallback.importText,
+  };
+}
+
 function App() {
   const [chatMode, setChatMode] = useState<ChatMode>('private');
   const [workspaces, setWorkspaces] = useState<Record<ChatMode, ChatWorkspace>>({
@@ -89,8 +106,10 @@ function App() {
     group: cloneWorkspace(GROUP_WORKSPACE),
   });
   const [toast, setToast] = useState('');
+  const [storageReady, setStorageReady] = useState(false);
   const phoneRef = useRef<HTMLDivElement | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const storageErrorShown = useRef(false);
   const active = workspaces[chatMode];
   const exportTitle = chatMode === 'group'
     ? `${active.settings.contactName.trim() || '群聊'} (${active.users.length})`
@@ -101,6 +120,55 @@ function App() {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(''), 2500);
   }, []);
+
+  const reportStorageError = useCallback(() => {
+    if (storageErrorShown.current) return;
+    storageErrorShown.current = true;
+    showToast('本地缓存不可用，本次编辑可能无法在刷新后恢复');
+  }, [showToast]);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadPersistedState()
+      .then(saved => {
+        if (cancelled || !saved) return;
+        setWorkspaces({
+          private: restoreWorkspace(saved.workspaces?.private, PRIVATE_WORKSPACE),
+          group: restoreWorkspace(saved.workspaces?.group, GROUP_WORKSPACE),
+        });
+        setChatMode(saved.chatMode === 'group' ? 'group' : 'private');
+        showToast('已恢复上次编辑内容');
+      })
+      .catch(() => {
+        if (!cancelled) reportStorageError();
+      })
+      .finally(() => {
+        if (!cancelled) setStorageReady(true);
+      });
+    return () => { cancelled = true; };
+  }, [reportStorageError, showToast]);
+
+  useEffect(() => {
+    if (!storageReady) return;
+    const snapshot = () => savePersistedState({
+      version: 1,
+      chatMode,
+      workspaces,
+      updatedAt: Date.now(),
+    }).catch(reportStorageError);
+    const timer = window.setTimeout(snapshot, 250);
+    const handlePageHide = () => { void snapshot(); };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') void snapshot();
+    };
+    window.addEventListener('pagehide', handlePageHide);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('pagehide', handlePageHide);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [chatMode, reportStorageError, storageReady, workspaces]);
 
   const updateActive = useCallback((updater: (workspace: ChatWorkspace) => ChatWorkspace) => {
     setWorkspaces(previous => ({ ...previous, [chatMode]: updater(previous[chatMode]) }));
